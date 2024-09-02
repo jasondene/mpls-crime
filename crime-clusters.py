@@ -2,29 +2,30 @@ import pandas as pd
 from sklearn.cluster import DBSCAN
 import numpy as np
 
-# Load the CSV file
-df = pd.read_csv('trees_data.csv')
+# Step 1: Import the CSV file
+data = pd.read_csv('crime_data.csv')
 
-# Extract relevant columns (latitude, longitude, and tree-count)
-coords = df[['latitude', 'longitude']].values
-tree_counts = df['tree-count'].values
+# Step 2: Filter the data for oak trees
+crime_type = data[data['Type'] == 'Gunshot Wound Victims']
 
-# Calculate weighted coordinates by multiplying latitude and longitude with tree-count
-weighted_coords = np.column_stack((coords[:, 0] * tree_counts, coords[:, 1] * tree_counts))
+# Step 3: Extract latitude and longitude
+coordinates = crime_type[['latitude', 'longitude']].values
 
-# Normalize the coordinates to avoid scale issues
-weighted_coords = weighted_coords / np.max(weighted_coords, axis=0)
+# Step 4: Apply DBSCAN clustering algorithm
+# Adjust the parameters as needed. eps is the maximum distance between two points to be considered in the same neighborhood.
+db = DBSCAN(eps=0.01, min_samples=5).fit(coordinates)
 
-# Apply DBSCAN clustering algorithm
-dbscan = DBSCAN(eps=0.05, min_samples=5).fit(weighted_coords)
+# Step 5: Add cluster labels to the oak_trees dataframe
+crime_type['cluster'] = db.labels_
 
-# Add the cluster labels back to the DataFrame
-df['cluster'] = dbscan.labels_
+# Step 6: Group by cluster and count the number of oak trees in each cluster
+cluster_counts = crime_type.groupby('cluster').size().reset_index(name='count')
 
-# Filter the clusters with the highest concentration of trees
-cluster_tree_count = df.groupby('cluster')['tree-count'].sum().sort_values(ascending=False)
-top_clusters = cluster_tree_count.head()
+# Step 7: Sort clusters by the number of oak trees
+sorted_clusters = cluster_counts.sort_values(by='count', ascending=False)
 
-# Display the results
-print("Top clusters with the highest concentration of trees:")
-print(top_clusters)
+# Display the clusters with the highest concentration of oak trees
+print(sorted_clusters.head())
+
+# Step 8: Optionally, save the clustered data with labels
+crime_type.to_csv('oak_tree_clusters.csv', index=False)

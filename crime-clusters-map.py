@@ -3,48 +3,54 @@ from sklearn.cluster import DBSCAN
 import numpy as np
 import folium
 
-# Load the CSV file
-df = pd.read_csv('trees_data.csv')
+# Step 1: Import the CSV file
+data = pd.read_csv('crime_data.csv')
 
-# Extract relevant columns (latitude, longitude, and tree-count)
-coords = df[['latitude', 'longitude']].values
-tree_counts = df['tree-count'].values
+# Step 2: Filter the data for oak trees
+crime_type = data[data['Type'] == 'Gunshot Wound Victims']
 
-# Calculate weighted coordinates by multiplying latitude and longitude with tree-count
-weighted_coords = np.column_stack((coords[:, 0] * tree_counts, coords[:, 1] * tree_counts))
+# Step 3: Extract latitude and longitude
+coordinates = crime_type[['latitude', 'longitude']].values
 
-# Normalize the coordinates to avoid scale issues
-weighted_coords = weighted_coords / np.max(weighted_coords, axis=0)
+# Step 4: Apply DBSCAN clustering algorithm
+db = DBSCAN(eps=0.01, min_samples=5).fit(coordinates)
 
-# Apply DBSCAN clustering algorithm
-dbscan = DBSCAN(eps=0.05, min_samples=5).fit(weighted_coords)
+# Step 5: Add cluster labels to the oak_trees dataframe
+crime_type['cluster'] = db.labels_
 
-# Add the cluster labels back to the DataFrame
-df['cluster'] = dbscan.labels_
+# Step 6: Group by cluster and count the number of oak trees in each cluster
+cluster_counts = crime_type.groupby('cluster').size().reset_index(name='count')
 
-# Create a map centered around the mean of the coordinates
-map_center = [df['latitude'].mean(), df['longitude'].mean()]
-tree_map = folium.Map(location=map_center, zoom_start=12)
+# Step 7: Sort clusters by the number of oak trees
+sorted_clusters = cluster_counts.sort_values(by='count', ascending=False)
 
-# Generate colors for each cluster
-clusters = df['cluster'].unique()
-colors = folium.colormap.linear.Set1_09.scale(0, len(clusters))
+# Step 8: Create a map centered around the mean latitude and longitude
+map_center = [crime_type['latitude'].mean(), crime_type['longitude'].mean()]
+map_crime_type = folium.Map(location=map_center, zoom_start=13)
 
-# Plot each cluster on the map
-for cluster in clusters:
-    cluster_data = df[df['cluster'] == cluster]
+# Step 9: Add clusters to the map
+for cluster in sorted_clusters['cluster']:
+    cluster_data = crime_type[crime_type['cluster'] == cluster]
+
+    # Compute the centroid of the cluster for the marker
+    centroid = [cluster_data['latitude'].mean(), cluster_data['longitude'].mean()]
+
+    # Create a marker for the cluster centroid
+    folium.Marker(
+        location=centroid,
+        popup=f'Cluster {cluster}: {len(cluster_data)} oak trees',
+        icon=folium.Icon(color='green')
+    ).add_to(map_crime_type)
+
+    # Optionally, add points for each tree in the cluster
     for _, row in cluster_data.iterrows():
         folium.CircleMarker(
             location=[row['latitude'], row['longitude']],
-            radius=5 + row['tree-count'] / 10,  # Adjust radius based on tree count
-            color=colors(cluster),
+            radius=2,
+            color='blue',
             fill=True,
-            fill_opacity=0.6,
-            popup=f"Cluster: {cluster}, Tree Count: {row['tree-count']}"
-        ).add_to(tree_map)
+            fill_color='blue'
+        ).add_to(map_crime_type)
 
-# Save the map as an HTML file
-tree_map.save('tree_clusters_map.html')
-
-# Display the map inline (optional, works in Jupyter notebooks)
-# tree_map
+# Step 10: Save the map to an HTML file
+map_crime_type.save('oak_tree_clusters_map.html')
