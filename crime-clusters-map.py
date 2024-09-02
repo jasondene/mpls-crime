@@ -10,7 +10,7 @@ data = pd.read_csv('crime_data.csv')
 crime_type = data[data['Type'] == 'Gunshot Wound Victims']
 
 # Step 3: Extract latitude and longitude
-coordinates = crime_type[['latitude', 'longitude']].values
+coordinates = crime_type[['Latitude', 'Longitude']].values
 
 # Step 4: Apply DBSCAN clustering algorithm
 db = DBSCAN(eps=0.01, min_samples=5).fit(coordinates)
